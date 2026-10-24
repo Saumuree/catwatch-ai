@@ -4,88 +4,293 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CatWatch AI</title>
+<meta name="theme-color" content="#10141c">
+<title>CatWatch AI V2</title>
+
 <style>
+  * { box-sizing: border-box; }
+
   body {
-    margin: 0; padding: 20px;
-    background: #10141c; color: white;
-    font: 16px Arial, sans-serif; text-align: center;
+    margin: 0;
+    padding: 20px;
+    background: #10141c;
+    color: white;
+    font: 16px Arial, sans-serif;
+    text-align: center;
   }
+
   h1 { color: #8be9fd; }
-  #status { padding: 14px; margin: 15px 0;
-    background: #222b38; border-radius: 12px; }
-  #view { position: relative; width: 100%;
-    max-width: 640px; margin: auto; }
-  video { width: 100%; display: block;
-    border-radius: 12px; }
-  canvas { position: absolute; inset: 0;
-    width: 100%; height: 100%; }
-  button { padding: 13px 18px; margin: 5px;
-    border: 0; border-radius: 10px;
-    font-size: 16px; font-weight: bold; }
-  #start { background: #8be9fd; }
-  #stop { background: #ff8b8b; }
-  #note { color: #c6ceda; font-size: 13px; }
+
+  #status {
+    padding: 15px;
+    margin: 15px auto;
+    max-width: 640px;
+    background: #222b38;
+    border-radius: 12px;
+  }
+
+  #status.alert {
+    background: #164b31;
+    outline: 2px solid #50fa7b;
+  }
+
+  #view {
+    position: relative;
+    width: 100%;
+    max-width: 640px;
+    margin: auto;
+    overflow: hidden;
+    border-radius: 12px;
+    background: #080b10;
+  }
+
+  video {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  button {
+    padding: 13px 16px;
+    margin: 5px;
+    border: 0;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  #start { background: #8be9fd; color: #10141c; }
+  #stop { background: #ff8b8b; color: #10141c; }
+  #clearHistory { background: #343e4d; color: white; }
+  button:disabled { opacity: 0.45; cursor: default; }
+
+  #historyPanel {
+    max-width: 640px;
+    margin: 24px auto;
+    padding: 16px;
+    text-align: left;
+    background: #1a202b;
+    border-radius: 12px;
+  }
+
+  #historyPanel h2 { color: #8be9fd; }
+
+  #history {
+    padding-left: 22px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+  }
+
+  #history li { margin: 12px 0; }
+
+  .muted {
+    color: #c6ceda;
+    font-size: 13px;
+  }
+
+  #note {
+    max-width: 640px;
+    margin: 20px auto;
+    color: #c6ceda;
+    font-size: 13px;
+    line-height: 1.6;
+  }
 </style>
 </head>
-<body>
-<h1>🐈 CatWatch AI</h1>
-<p>Ton détecteur de chats intelligent</p>
 
-<div id="status">Chargement du modèle IA...</div>
+<body>
+
+<h1>🐈 CatWatch AI</h1>
+<p>Détecteur intelligent de chats — Version 2</p>
+
+<div id="status">Chargement de l'intelligence artificielle…</div>
 
 <div id="view">
   <video id="video" autoplay muted playsinline></video>
   <canvas id="overlay"></canvas>
 </div>
 
-<p>
+<div>
   <button id="start" disabled>Démarrer la caméra</button>
   <button id="stop" disabled>Arrêter</button>
-</p>
+</div>
+
+<section id="historyPanel">
+  <h2>📋 Historique des détections</h2>
+  <p class="muted">
+    Les 50 dernières apparitions détectées sont conservées sur cet appareil.
+  </p>
+  <ul id="history"></ul>
+  <button id="clearHistory">🗑️ Effacer l'historique</button>
+</section>
+
 <p id="note">
-  L'analyse des images se fait dans ton navigateur.
-  La première utilisation nécessite Internet.
+  L'analyse vidéo s'effectue dans ton navigateur.
+  Le modèle IA est téléchargé depuis Internet au démarrage.
+  Garde cette page ouverte pour continuer la détection.
 </p>
 
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+
 <script>
+'use strict';
+
 const video = document.getElementById('video');
 const canvas = document.getElementById('overlay');
 const ctx = canvas.getContext('2d');
-const status = document.getElementById('status');
-const start = document.getElementById('start');
-const stop = document.getElementById('stop');
+const statusBox = document.getElementById('status');
+const startButton = document.getElementById('start');
+const stopButton = document.getElementById('stop');
+const historyList = document.getElementById('history');
+const clearHistoryButton = document.getElementById('clearHistory');
+
+const HISTORY_KEY = 'catwatch_detection_history_v2';
+const ALERT_COOLDOWN = 10000;
+const MAX_HISTORY = 50;
 
 let model = null;
 let stream = null;
 let running = false;
 let busy = false;
 let lastDetected = false;
+let lastAlertTime = 0;
+let detectionHistory = [];
+let sessionId = 0;
 
-function setStatus(message) {
-  status.textContent = message;
+function setStatus(message, alert = false) {
+  statusBox.textContent = message;
+  statusBox.classList.toggle('alert', alert);
+}
+
+function loadHistory() {
+  try {
+    const saved = localStorage.getItem(HISTORY_KEY);
+    const parsed = saved ? JSON.parse(saved) : [];
+
+    detectionHistory = Array.isArray(parsed)
+      ? parsed.filter(entry =>
+          entry &&
+          typeof entry.time === 'number' &&
+          typeof entry.count === 'number' &&
+          typeof entry.confidence === 'number'
+        ).slice(0, MAX_HISTORY)
+      : [];
+  } catch (error) {
+    detectionHistory = [];
+    console.error('Lecture de l’historique impossible :', error);
+  }
+
+  renderHistory();
+}
+
+function saveHistory() {
+  try {
+    localStorage.setItem(
+      HISTORY_KEY,
+      JSON.stringify(detectionHistory)
+    );
+  } catch (error) {
+    console.error('Sauvegarde impossible :', error);
+    setStatus('Attention : impossible de sauvegarder l’historique.');
+  }
+}
+
+function renderHistory() {
+  historyList.replaceChildren();
+
+  if (detectionHistory.length === 0) {
+    const item = document.createElement('li');
+    item.textContent = 'Aucune détection enregistrée.';
+    historyList.appendChild(item);
+    return;
+  }
+
+  for (const entry of detectionHistory) {
+    const item = document.createElement('li');
+    const date = new Date(entry.time);
+
+    item.textContent =
+      date.toLocaleString('fr-FR') +
+      ' — ' + entry.count + ' chat(s)' +
+      ' — confiance max. ' +
+      Math.round(entry.confidence * 100) + ' %';
+
+    historyList.appendChild(item);
+  }
+}
+
+function recordDetection(cats) {
+  const now = Date.now();
+
+  // Évite les alertes répétées à quelques secondes d'intervalle.
+  if (now - lastAlertTime < ALERT_COOLDOWN) return;
+
+  lastAlertTime = now;
+
+  const maxConfidence = Math.max(
+    ...cats.map(cat => cat.score)
+  );
+
+  detectionHistory.unshift({
+    time: now,
+    count: cats.length,
+    confidence: maxConfidence
+  });
+
+  detectionHistory = detectionHistory.slice(0, MAX_HISTORY);
+  saveHistory();
+  renderHistory();
+
+  setStatus(
+    '🔔 ALERTE ! ' + cats.length + ' chat(s) détecté(s) !',
+    true
+  );
+
+  // La vibration n'est pas prise en charge par tous les navigateurs iOS.
+  try {
+    if (typeof navigator.vibrate === 'function') {
+      navigator.vibrate(200);
+    }
+  } catch (error) {
+    console.log('Vibration non disponible.');
+  }
 }
 
 async function loadModel() {
   try {
-    setStatus('Chargement de l’intelligence artificielle…');
+    setStatus('Chargement du modèle IA…');
+
     await tf.ready();
+
     model = await cocoSsd.load({
       base: 'lite_mobilenet_v2'
     });
-    setStatus('IA prête. Appuie sur Démarrer !');
-    start.disabled = false;
+
+    setStatus('✅ IA prête ! Appuie sur Démarrer.');
+    startButton.disabled = false;
   } catch (error) {
-    setStatus('Erreur de chargement. Vérifie Internet et recharge.');
     console.error(error);
+    setStatus(
+      'Erreur de chargement. Vérifie Internet puis actualise la page.'
+    );
   }
 }
 
-start.addEventListener('click', async () => {
+async function startCamera() {
+  if (!model || running) return;
+
   try {
-    start.disabled = true;
+    startButton.disabled = true;
     setStatus('Activation de la caméra…');
 
     stream = await navigator.mediaDevices.getUserMedia({
@@ -102,78 +307,143 @@ start.addEventListener('click', async () => {
 
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    running = true;
-    stop.disabled = false;
-    setStatus('🔎 Recherche de chats en cours…');
-    detectLoop();
-  } catch (error) {
-    setStatus('Caméra inaccessible. Autorise-la dans Safari.');
-    start.disabled = false;
-    console.error(error);
-  }
-});
 
-stop.addEventListener('click', () => {
+    sessionId++;
+    running = true;
+    busy = false;
+    lastDetected = false;
+
+    stopButton.disabled = false;
+    setStatus('🔎 Recherche de chats en cours…');
+
+    detectLoop(sessionId);
+  } catch (error) {
+    console.error(error);
+
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+    }
+
+    stream = null;
+    video.srcObject = null;
+    startButton.disabled = false;
+
+    setStatus(
+      'Caméra inaccessible. Vérifie les autorisations de Safari.'
+    );
+  }
+}
+
+function stopCamera() {
   running = false;
-  busy = false;
-  if (stream) stream.getTracks().forEach(track => track.stop());
+  sessionId++;
+
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+  }
+
   stream = null;
   video.srcObject = null;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  stop.disabled = true;
-  start.disabled = false;
-  setStatus('Détection arrêtée.');
-});
+  busy = false;
+  lastDetected = false;
 
-async function detectLoop() {
-  if (!running || busy) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  stopButton.disabled = true;
+  startButton.disabled = !model;
+
+  setStatus('Détection arrêtée.');
+}
+
+async function detectLoop(currentSession) {
+  if (!running || currentSession !== sessionId || busy) return;
+
   if (video.readyState < 2) {
-    requestAnimationFrame(detectLoop);
+    setTimeout(() => detectLoop(currentSession), 150);
     return;
   }
 
   busy = true;
+
   try {
     const predictions = await model.detect(video, 20, 0.45);
-    if (!running) return;
+
+    if (!running || currentSession !== sessionId) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const cats = predictions.filter(p => p.class === 'cat');
-    
+
+    const cats = predictions.filter(
+      prediction => prediction.class === 'cat'
+    );
+
     for (const cat of cats) {
       const [x, y, w, h] = cat.bbox;
+
       ctx.strokeStyle = '#50fa7b';
       ctx.lineWidth = 4;
       ctx.strokeRect(x, y, w, h);
 
-      const label = `CHAT ${Math.round(cat.score * 100)}%`;
+      const label = 'CHAT ' + Math.round(cat.score * 100) + '%';
       ctx.font = 'bold 18px Arial';
+
       const labelWidth = ctx.measureText(label).width + 12;
+      const labelY = Math.max(0, y - 29);
+
       ctx.fillStyle = '#50fa7b';
-      ctx.fillRect(x, Math.max(0, y - 28), labelWidth, 28);
+      ctx.fillRect(x, labelY, labelWidth, 29);
+
       ctx.fillStyle = '#10141c';
-      ctx.fillText(label, x + 6, Math.max(20, y - 8));
+      ctx.fillText(label, x + 6, labelY + 21);
     }
 
     if (cats.length > 0) {
-      setStatus(`🐈 ${cats.length} chat(s) détecté(s) !`);
       if (!lastDetected) {
-        if (navigator.vibrate) navigator.vibrate(150);
+        recordDetection(cats);
+      } else {
+        setStatus('🐈 ' + cats.length + ' chat(s) dans le champ.');
       }
     } else {
       setStatus('🔎 Aucun chat détecté pour le moment.');
     }
+
     lastDetected = cats.length > 0;
   } catch (error) {
     console.error(error);
     setStatus('Erreur pendant la détection.');
   } finally {
     busy = false;
-    if (running) setTimeout(detectLoop, 150);
+
+    if (running && currentSession === sessionId) {
+      setTimeout(() => detectLoop(currentSession), 150);
+    }
   }
 }
 
+startButton.addEventListener('click', startCamera);
+stopButton.addEventListener('click', stopCamera);
+
+clearHistoryButton.addEventListener('click', () => {
+  detectionHistory = [];
+
+  try {
+    localStorage.removeItem(HISTORY_KEY);
+  } catch (error) {
+    console.error(error);
+  }
+
+  renderHistory();
+  setStatus('Historique effacé.');
+});
+
+window.addEventListener('pagehide', () => {
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+  }
+});
+
+loadHistory();
 loadModel();
 </script>
+
 </body>
 </html>
