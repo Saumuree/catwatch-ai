@@ -3,116 +3,103 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#10141c">
-<title>CatWatch AI V2</title>
+<title>CatWatch AI V3 - Night Vision</title>
 
 <style>
-  * { box-sizing: border-box; }
+* { box-sizing: border-box; }
 
-  body {
-    margin: 0;
-    padding: 20px;
-    background: #10141c;
-    color: white;
-    font: 16px Arial, sans-serif;
-    text-align: center;
-  }
+body {
+  margin: 0;
+  padding: 16px;
+  background: #10141c;
+  color: white;
+  font: 16px Arial, sans-serif;
+  text-align: center;
+}
 
-  h1 { color: #8be9fd; }
+h1 { color: #8be9fd; }
 
-  #status {
-    padding: 15px;
-    margin: 15px auto;
-    max-width: 640px;
-    background: #222b38;
-    border-radius: 12px;
-  }
+#status {
+  padding: 14px;
+  margin: 15px auto;
+  max-width: 700px;
+  background: #222b38;
+  border-radius: 12px;
+  line-height: 1.4;
+}
 
-  #status.alert {
-    background: #164b31;
-    outline: 2px solid #50fa7b;
-  }
+#status.alert {
+  background: #164b31;
+  outline: 2px solid #50fa7b;
+}
 
-  #view {
-    position: relative;
-    width: 100%;
-    max-width: 640px;
-    margin: auto;
-    overflow: hidden;
-    border-radius: 12px;
-    background: #080b10;
-  }
+#view {
+  position: relative;
+  width: 100%;
+  max-width: 700px;
+  margin: auto;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #080b10;
+}
 
-  video {
-    display: block;
-    width: 100%;
-    height: auto;
-  }
+video {
+  display: block;
+  width: 100%;
+  height: auto;
+  transition: filter .2s;
+}
 
-  canvas {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-  }
+canvas#overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
 
-  button {
-    padding: 13px 16px;
-    margin: 5px;
-    border: 0;
-    border-radius: 10px;
-    font-size: 15px;
-    font-weight: bold;
-    cursor: pointer;
-  }
+button {
+  padding: 13px 14px;
+  margin: 5px;
+  border: 0;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+}
 
-  #start { background: #8be9fd; color: #10141c; }
-  #stop { background: #ff8b8b; color: #10141c; }
-  #clearHistory { background: #343e4d; color: white; }
-  button:disabled { opacity: 0.45; cursor: default; }
+button:disabled { opacity: .45; }
+#start { background: #8be9fd; color: #10141c; }
+#stop { background: #ff8b8b; color: #10141c; }
+#night { background: #bd93f9; color: #10141c; }
+#torch { background: #f1fa8c; color: #10141c; }
+#clearHistory { background: #343e4d; color: white; }
 
-  #historyPanel {
-    max-width: 640px;
-    margin: 24px auto;
-    padding: 16px;
-    text-align: left;
-    background: #1a202b;
-    border-radius: 12px;
-  }
+#historyPanel {
+  max-width: 700px;
+  margin: 22px auto;
+  padding: 16px;
+  text-align: left;
+  background: #1a202b;
+  border-radius: 12px;
+}
 
-  #historyPanel h2 { color: #8be9fd; }
-
-  #history {
-    padding-left: 22px;
-    line-height: 1.6;
-    overflow-wrap: anywhere;
-  }
-
-  #history li { margin: 12px 0; }
-
-  .muted {
-    color: #c6ceda;
-    font-size: 13px;
-  }
-
-  #note {
-    max-width: 640px;
-    margin: 20px auto;
-    color: #c6ceda;
-    font-size: 13px;
-    line-height: 1.6;
-  }
+#historyPanel h2 { color: #8be9fd; }
+#history { padding-left: 22px; line-height: 1.6; overflow-wrap: anywhere; }
+#history li { margin: 12px 0; }
+.muted, #note { color: #c6ceda; font-size: 13px; line-height: 1.6; }
+#note { max-width: 700px; margin: 20px auto; }
 </style>
 </head>
 
 <body>
 
 <h1>🐈 CatWatch AI</h1>
-<p>Détecteur intelligent de chats — Version 2</p>
+<p>V3 — Détection et vision nocturne expérimentale</p>
 
-<div id="status">Chargement de l'intelligence artificielle…</div>
+<div id="status">Chargement de l'IA…</div>
 
 <div id="view">
   <video id="video" autoplay muted playsinline></video>
@@ -124,20 +111,30 @@
   <button id="stop" disabled>Arrêter</button>
 </div>
 
+<div>
+  <button id="night">🌙 Activer le mode nuit</button>
+  <button id="torch" disabled>🔦 Essayer la torche</button>
+</div>
+
+<p class="muted">
+  Le mode nuit éclaircit l'image et l'image analysée par l'IA.
+  La torche dépend des fonctions autorisées par Safari.
+</p>
+
 <section id="historyPanel">
   <h2>📋 Historique des détections</h2>
-  <p class="muted">
-    Les 50 dernières apparitions détectées sont conservées sur cet appareil.
-  </p>
+  <p class="muted">Les 50 dernières apparitions détectées sont conservées sur cet appareil.</p>
   <ul id="history"></ul>
   <button id="clearHistory">🗑️ Effacer l'historique</button>
 </section>
 
 <p id="note">
-  L'analyse vidéo s'effectue dans ton navigateur.
-  Le modèle IA est téléchargé depuis Internet au démarrage.
-  Garde cette page ouverte pour continuer la détection.
+  L'IA fonctionne dans le navigateur. Internet est nécessaire au chargement
+  du modèle. Garde cette page ouverte et l'écran actif pendant la recherche.
 </p>
+
+<!-- Image de travail séparée : les cadres verts ne polluent pas l'analyse. -->
+<canvas id="analysis" hidden></canvas>
 
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
@@ -146,25 +143,33 @@
 'use strict';
 
 const video = document.getElementById('video');
-const canvas = document.getElementById('overlay');
-const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const ctx = overlay.getContext('2d');
+const analysis = document.getElementById('analysis');
+const actx = analysis.getContext('2d');
+
 const statusBox = document.getElementById('status');
 const startButton = document.getElementById('start');
 const stopButton = document.getElementById('stop');
+const nightButton = document.getElementById('night');
+const torchButton = document.getElementById('torch');
 const historyList = document.getElementById('history');
 const clearHistoryButton = document.getElementById('clearHistory');
 
-const HISTORY_KEY = 'catwatch_detection_history_v2';
-const ALERT_COOLDOWN = 10000;
+const HISTORY_KEY = 'catwatch_detection_history_v3';
 const MAX_HISTORY = 50;
+const ALERT_COOLDOWN = 10000;
 
 let model = null;
 let stream = null;
+let cameraTrack = null;
 let running = false;
 let busy = false;
+let nightMode = false;
+let torchOn = false;
 let lastDetected = false;
 let lastAlertTime = 0;
-let detectionHistory = [];
+let history = [];
 let sessionId = 0;
 
 function setStatus(message, alert = false) {
@@ -176,161 +181,190 @@ function loadHistory() {
   try {
     const saved = localStorage.getItem(HISTORY_KEY);
     const parsed = saved ? JSON.parse(saved) : [];
-
-    detectionHistory = Array.isArray(parsed)
-      ? parsed.filter(entry =>
-          entry &&
-          typeof entry.time === 'number' &&
-          typeof entry.count === 'number' &&
-          typeof entry.confidence === 'number'
-        ).slice(0, MAX_HISTORY)
-      : [];
-  } catch (error) {
-    detectionHistory = [];
-    console.error('Lecture de l’historique impossible :', error);
+    history = Array.isArray(parsed) ? parsed.slice(0, MAX_HISTORY) : [];
+  } catch {
+    history = [];
   }
-
   renderHistory();
 }
 
 function saveHistory() {
   try {
-    localStorage.setItem(
-      HISTORY_KEY,
-      JSON.stringify(detectionHistory)
-    );
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
   } catch (error) {
-    console.error('Sauvegarde impossible :', error);
-    setStatus('Attention : impossible de sauvegarder l’historique.');
+    console.error('Historique non sauvegardé :', error);
   }
 }
 
 function renderHistory() {
   historyList.replaceChildren();
 
-  if (detectionHistory.length === 0) {
-    const item = document.createElement('li');
-    item.textContent = 'Aucune détection enregistrée.';
-    historyList.appendChild(item);
+  if (!history.length) {
+    const li = document.createElement('li');
+    li.textContent = 'Aucune détection enregistrée.';
+    historyList.appendChild(li);
     return;
   }
 
-  for (const entry of detectionHistory) {
-    const item = document.createElement('li');
-    const date = new Date(entry.time);
-
-    item.textContent =
-      date.toLocaleString('fr-FR') +
-      ' — ' + entry.count + ' chat(s)' +
-      ' — confiance max. ' +
+  for (const entry of history) {
+    const li = document.createElement('li');
+    li.textContent =
+      new Date(entry.time).toLocaleString('fr-FR') +
+      ' — ' + entry.count + ' chat(s) — confiance max. ' +
       Math.round(entry.confidence * 100) + ' %';
-
-    historyList.appendChild(item);
+    historyList.appendChild(li);
   }
 }
 
 function recordDetection(cats) {
   const now = Date.now();
-
-  // Évite les alertes répétées à quelques secondes d'intervalle.
   if (now - lastAlertTime < ALERT_COOLDOWN) return;
 
   lastAlertTime = now;
+  const confidence = Math.max(...cats.map(cat => cat.score));
 
-  const maxConfidence = Math.max(
-    ...cats.map(cat => cat.score)
-  );
-
-  detectionHistory.unshift({
+  history.unshift({
     time: now,
     count: cats.length,
-    confidence: maxConfidence
+    confidence
   });
 
-  detectionHistory = detectionHistory.slice(0, MAX_HISTORY);
+  history = history.slice(0, MAX_HISTORY);
   saveHistory();
   renderHistory();
 
-  setStatus(
-    '🔔 ALERTE ! ' + cats.length + ' chat(s) détecté(s) !',
-    true
-  );
+  setStatus('🔔 CHAT DÉTECTÉ ! ' + cats.length + ' chat(s) — vérifie l’image.', true);
 
-  // La vibration n'est pas prise en charge par tous les navigateurs iOS.
   try {
-    if (typeof navigator.vibrate === 'function') {
-      navigator.vibrate(200);
-    }
-  } catch (error) {
-    console.log('Vibration non disponible.');
-  }
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  } catch {}
 }
 
 async function loadModel() {
   try {
-    setStatus('Chargement du modèle IA…');
-
     await tf.ready();
+    setStatus('Chargement du modèle de détection…');
 
-    model = await cocoSsd.load({
-      base: 'lite_mobilenet_v2'
-    });
+    try {
+      // Modèle généralement plus précis, mais plus lourd.
+      model = await cocoSsd.load({ base: 'mobilenet_v2' });
+    } catch (error) {
+      console.warn('Modèle plus précis indisponible, essai du modèle léger.', error);
+      setStatus('Chargement du modèle léger…');
+      model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+    }
 
-    setStatus('✅ IA prête ! Appuie sur Démarrer.');
+    setStatus('✅ IA prête. Démarre la caméra.');
     startButton.disabled = false;
   } catch (error) {
     console.error(error);
-    setStatus(
-      'Erreur de chargement. Vérifie Internet puis actualise la page.'
-    );
+    setStatus('Échec du chargement de l’IA. Vérifie Internet puis actualise.');
+  }
+}
+
+function applyNightDisplay() {
+  // Améliore le confort visuel, sans créer de détails absents du capteur.
+  video.style.filter = nightMode
+    ? 'brightness(1.55) contrast(1.18) saturate(1.15)'
+    : 'none';
+
+  nightButton.textContent = nightMode
+    ? '☀️ Désactiver le mode nuit'
+    : '🌙 Activer le mode nuit';
+}
+
+nightButton.addEventListener('click', () => {
+  nightMode = !nightMode;
+  applyNightDisplay();
+  setStatus(nightMode
+    ? '🌙 Mode nuit activé : image éclaircie pour l’affichage et l’analyse.'
+    : 'Mode nuit désactivé.');
+});
+
+async function toggleTorch() {
+  if (!cameraTrack || !running) {
+    setStatus('Démarre la caméra avant d’essayer la torche.');
+    return;
+  }
+
+  try {
+    // Certains navigateurs ou appareils n'exposent pas cette fonction.
+    await cameraTrack.applyConstraints({
+      advanced: [{ torch: !torchOn }]
+    });
+
+    torchOn = !torchOn;
+    torchButton.textContent = torchOn
+      ? '🔦 Éteindre la torche'
+      : '🔦 Essayer la torche';
+
+    setStatus(torchOn
+      ? 'Torche activée.'
+      : 'Torche désactivée.');
+  } catch (error) {
+    console.warn('Contrôle de la torche indisponible :', error);
+    setStatus('Safari ne permet pas de contrôler la torche avec cette caméra. Utilise une lampe externe.');
   }
 }
 
 async function startCamera() {
   if (!model || running) return;
 
-  try {
-    startButton.disabled = true;
-    setStatus('Activation de la caméra…');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    setStatus('La caméra est indisponible. Ouvre le site en HTTPS dans Safari.');
+    return;
+  }
 
+  startButton.disabled = true;
+  setStatus('Activation de la caméra…');
+
+  try {
     stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
       video: {
         facingMode: { ideal: 'environment' },
-        width: { ideal: 640 },
-        height: { ideal: 480 }
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        frameRate: { ideal: 24, max: 30 }
       }
     });
 
+    cameraTrack = stream.getVideoTracks()[0];
     video.srcObject = stream;
     await video.play();
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    await new Promise(resolve => {
+      if (video.videoWidth > 0) resolve();
+      else video.addEventListener('loadedmetadata', resolve, { once: true });
+    });
+
+    overlay.width = video.videoWidth;
+    overlay.height = video.videoHeight;
+    analysis.width = video.videoWidth;
+    analysis.height = video.videoHeight;
 
     sessionId++;
     running = true;
     busy = false;
     lastDetected = false;
+    torchOn = false;
 
     stopButton.disabled = false;
-    setStatus('🔎 Recherche de chats en cours…');
+    torchButton.disabled = false;
 
+    setStatus('🔎 Recherche en cours…');
     detectLoop(sessionId);
   } catch (error) {
     console.error(error);
 
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-    }
+    if (stream) stream.getTracks().forEach(track => track.stop());
 
     stream = null;
+    cameraTrack = null;
     video.srcObject = null;
     startButton.disabled = false;
 
-    setStatus(
-      'Caméra inaccessible. Vérifie les autorisations de Safari.'
-    );
+    setStatus('Caméra inaccessible. Autorise la caméra dans les réglages de Safari.');
   }
 }
 
@@ -338,18 +372,19 @@ function stopCamera() {
   running = false;
   sessionId++;
 
-  if (stream) {
-    stream.getTracks().forEach(track => track.stop());
-  }
+  if (stream) stream.getTracks().forEach(track => track.stop());
 
   stream = null;
+  cameraTrack = null;
   video.srcObject = null;
   busy = false;
   lastDetected = false;
+  torchOn = false;
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0, 0, overlay.width, overlay.height);
 
   stopButton.disabled = true;
+  torchButton.disabled = true;
   startButton.disabled = !model;
 
   setStatus('Détection arrêtée.');
@@ -358,92 +393,99 @@ function stopCamera() {
 async function detectLoop(currentSession) {
   if (!running || currentSession !== sessionId || busy) return;
 
-  if (video.readyState < 2) {
-    setTimeout(() => detectLoop(currentSession), 150);
+  if (video.readyState < 2 || !video.videoWidth) {
+    setTimeout(() => detectLoop(currentSession), 200);
     return;
   }
 
   busy = true;
 
   try {
-    const predictions = await model.detect(video, 20, 0.45);
+    // Analyse séparée du dessin des cadres.
+    actx.save();
+    actx.filter = nightMode
+      ? 'brightness(1.55) contrast(1.18) saturate(1.15)'
+      : 'none';
+
+    actx.drawImage(video, 0, 0, analysis.width, analysis.height);
+    actx.restore();
+
+    // Seuil plus bas pour tenter de repérer des chats peu visibles.
+    // Cela peut aussi augmenter les fausses détections.
+    const predictions = await model.detect(analysis, 20, 0.30);
 
     if (!running || currentSession !== sessionId) return;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
 
-    const cats = predictions.filter(
-      prediction => prediction.class === 'cat'
-    );
+    const cats = predictions.filter(p => p.class === 'cat');
 
     for (const cat of cats) {
       const [x, y, w, h] = cat.bbox;
 
       ctx.strokeStyle = '#50fa7b';
-      ctx.lineWidth = 4;
+      ctx.lineWidth = Math.max(3, overlay.width / 320);
       ctx.strokeRect(x, y, w, h);
 
       const label = 'CHAT ' + Math.round(cat.score * 100) + '%';
-      ctx.font = 'bold 18px Arial';
+      const fontSize = Math.max(18, overlay.width / 45);
+      ctx.font = 'bold ' + fontSize + 'px Arial';
 
       const labelWidth = ctx.measureText(label).width + 12;
-      const labelY = Math.max(0, y - 29);
+      const labelHeight = fontSize + 12;
+      const labelY = Math.max(0, y - labelHeight);
 
       ctx.fillStyle = '#50fa7b';
-      ctx.fillRect(x, labelY, labelWidth, 29);
-
+      ctx.fillRect(x, labelY, labelWidth, labelHeight);
       ctx.fillStyle = '#10141c';
-      ctx.fillText(label, x + 6, labelY + 21);
+      ctx.fillText(label, x + 6, labelY + fontSize);
     }
 
     if (cats.length > 0) {
       if (!lastDetected) {
         recordDetection(cats);
       } else {
-        setStatus('🐈 ' + cats.length + ' chat(s) dans le champ.');
+        setStatus('🐈 ' + cats.length + ' chat(s) visible(s). Vérifie les cadres verts.');
       }
     } else {
-      setStatus('🔎 Aucun chat détecté pour le moment.');
+      setStatus(nightMode
+        ? '🌙 Recherche nocturne en cours… Aucun chat reconnu pour le moment.'
+        : '🔎 Recherche en cours… Aucun chat reconnu pour le moment.');
     }
 
     lastDetected = cats.length > 0;
   } catch (error) {
     console.error(error);
-    setStatus('Erreur pendant la détection.');
+    setStatus('Erreur pendant la détection. Essaie de redémarrer la caméra.');
   } finally {
     busy = false;
-
     if (running && currentSession === sessionId) {
-      setTimeout(() => detectLoop(currentSession), 150);
+      setTimeout(() => detectLoop(currentSession), 100);
     }
   }
 }
 
 startButton.addEventListener('click', startCamera);
 stopButton.addEventListener('click', stopCamera);
+torchButton.addEventListener('click', toggleTorch);
 
 clearHistoryButton.addEventListener('click', () => {
-  detectionHistory = [];
-
+  history = [];
   try {
     localStorage.removeItem(HISTORY_KEY);
-  } catch (error) {
-    console.error(error);
-  }
-
+  } catch {}
   renderHistory();
   setStatus('Historique effacé.');
 });
 
 window.addEventListener('pagehide', () => {
-  if (stream) {
-    stream.getTracks().forEach(track => track.stop());
-  }
+  running = false;
+  if (stream) stream.getTracks().forEach(track => track.stop());
 });
 
 loadHistory();
+applyNightDisplay();
 loadModel();
 </script>
-
 </body>
 </html>
