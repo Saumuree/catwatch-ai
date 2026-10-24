@@ -1,0 +1,179 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CatWatch AI</title>
+<style>
+  body {
+    margin: 0; padding: 20px;
+    background: #10141c; color: white;
+    font: 16px Arial, sans-serif; text-align: center;
+  }
+  h1 { color: #8be9fd; }
+  #status { padding: 14px; margin: 15px 0;
+    background: #222b38; border-radius: 12px; }
+  #view { position: relative; width: 100%;
+    max-width: 640px; margin: auto; }
+  video { width: 100%; display: block;
+    border-radius: 12px; }
+  canvas { position: absolute; inset: 0;
+    width: 100%; height: 100%; }
+  button { padding: 13px 18px; margin: 5px;
+    border: 0; border-radius: 10px;
+    font-size: 16px; font-weight: bold; }
+  #start { background: #8be9fd; }
+  #stop { background: #ff8b8b; }
+  #note { color: #c6ceda; font-size: 13px; }
+</style>
+</head>
+<body>
+<h1>🐈 CatWatch AI</h1>
+<p>Ton détecteur de chats intelligent</p>
+
+<div id="status">Chargement du modèle IA...</div>
+
+<div id="view">
+  <video id="video" autoplay muted playsinline></video>
+  <canvas id="overlay"></canvas>
+</div>
+
+<p>
+  <button id="start" disabled>Démarrer la caméra</button>
+  <button id="stop" disabled>Arrêter</button>
+</p>
+<p id="note">
+  L'analyse des images se fait dans ton navigateur.
+  La première utilisation nécessite Internet.
+</p>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<script>
+const video = document.getElementById('video');
+const canvas = document.getElementById('overlay');
+const ctx = canvas.getContext('2d');
+const status = document.getElementById('status');
+const start = document.getElementById('start');
+const stop = document.getElementById('stop');
+
+let model = null;
+let stream = null;
+let running = false;
+let busy = false;
+let lastDetected = false;
+
+function setStatus(message) {
+  status.textContent = message;
+}
+
+async function loadModel() {
+  try {
+    setStatus('Chargement de l’intelligence artificielle…');
+    await tf.ready();
+    model = await cocoSsd.load({
+      base: 'lite_mobilenet_v2'
+    });
+    setStatus('IA prête. Appuie sur Démarrer !');
+    start.disabled = false;
+  } catch (error) {
+    setStatus('Erreur de chargement. Vérifie Internet et recharge.');
+    console.error(error);
+  }
+}
+
+start.addEventListener('click', async () => {
+  try {
+    start.disabled = true;
+    setStatus('Activation de la caméra…');
+
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 640 },
+        height: { ideal: 480 }
+      }
+    });
+
+    video.srcObject = stream;
+    await video.play();
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    running = true;
+    stop.disabled = false;
+    setStatus('🔎 Recherche de chats en cours…');
+    detectLoop();
+  } catch (error) {
+    setStatus('Caméra inaccessible. Autorise-la dans Safari.');
+    start.disabled = false;
+    console.error(error);
+  }
+});
+
+stop.addEventListener('click', () => {
+  running = false;
+  busy = false;
+  if (stream) stream.getTracks().forEach(track => track.stop());
+  stream = null;
+  video.srcObject = null;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  stop.disabled = true;
+  start.disabled = false;
+  setStatus('Détection arrêtée.');
+});
+
+async function detectLoop() {
+  if (!running || busy) return;
+  if (video.readyState < 2) {
+    requestAnimationFrame(detectLoop);
+    return;
+  }
+
+  busy = true;
+  try {
+    const predictions = await model.detect(video, 20, 0.45);
+    if (!running) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const cats = predictions.filter(p => p.class === 'cat');
+    
+    for (const cat of cats) {
+      const [x, y, w, h] = cat.bbox;
+      ctx.strokeStyle = '#50fa7b';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(x, y, w, h);
+
+      const label = `CHAT ${Math.round(cat.score * 100)}%`;
+      ctx.font = 'bold 18px Arial';
+      const labelWidth = ctx.measureText(label).width + 12;
+      ctx.fillStyle = '#50fa7b';
+      ctx.fillRect(x, Math.max(0, y - 28), labelWidth, 28);
+      ctx.fillStyle = '#10141c';
+      ctx.fillText(label, x + 6, Math.max(20, y - 8));
+    }
+
+    if (cats.length > 0) {
+      setStatus(`🐈 ${cats.length} chat(s) détecté(s) !`);
+      if (!lastDetected) {
+        if (navigator.vibrate) navigator.vibrate(150);
+      }
+    } else {
+      setStatus('🔎 Aucun chat détecté pour le moment.');
+    }
+    lastDetected = cats.length > 0;
+  } catch (error) {
+    console.error(error);
+    setStatus('Erreur pendant la détection.');
+  } finally {
+    busy = false;
+    if (running) setTimeout(detectLoop, 150);
+  }
+}
+
+loadModel();
+</script>
+</body>
+</html>
